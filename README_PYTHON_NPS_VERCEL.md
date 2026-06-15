@@ -68,3 +68,24 @@ python scripts/gerar_dados_nps.py
 ```
 
 Por padrão, o script usa `public/models/base_inferida_swift.csv.gz` e recria `src/data/nps.ts`.
+
+
+## Atualização de modelos treinados
+
+Este patch inclui os modelos enviados em:
+
+```text
+api/models/modelo_sentimento.joblib
+api/models/modelo_categorizacao.joblib
+```
+
+O Python usa esses modelos primeiro. Se algum modelo não carregar na Vercel/local, o dashboard continua funcionando com as heurísticas de fallback de `api/nps_engine.py`.
+
+Para trocar os modelos no futuro, substitua os arquivos `.joblib` dentro de `api/models/` mantendo os mesmos nomes.
+
+As dependências Python necessárias para carregar os modelos ficam em:
+
+```text
+requirements.txt
+```
+

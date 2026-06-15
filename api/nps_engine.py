@@ -7,6 +7,8 @@ import json
 import math
 import re
 import unicodedata
+import warnings
+from functools import lru_cache
 from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
@@ -48,6 +50,160 @@ CATEGORY_CRITERIA = {
     "Entrega / Pedido digital": "Entrega, pedido, retirada, produto não recebido, atraso, estorno e problemas operacionais.",
     "Outros / Genéricos": "Comentários sem tema acionável ou que não se encaixam nas categorias anteriores.",
 }
+
+
+MODEL_DIR = Path(__file__).resolve().parent / "models"
+SENTIMENT_MODEL_FILENAME = "modelo_sentimento.joblib"
+CATEGORY_MODEL_FILENAME = "modelo_categorizacao.joblib"
+
+
+@lru_cache(maxsize=2)
+def load_joblib_model(filename: str) -> Any | None:
+    """Carrega modelos .joblib uma única vez por execução da função serverless.
+
+    Se a dependência ou o arquivo não existir, o dashboard continua funcionando
+    com as heurísticas Python de fallback.
+    """
+    path = MODEL_DIR / filename
+    if not path.exists():
+        return None
+    try:
+        import joblib  # type: ignore
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            return joblib.load(path)
+    except Exception:
+        return None
+
+
+def get_sentiment_model() -> Any | None:
+    return load_joblib_model(SENTIMENT_MODEL_FILENAME)
+
+
+def get_category_model() -> Any | None:
+    return load_joblib_model(CATEGORY_MODEL_FILENAME)
+
+
+def model_classes(model: Any) -> list[str]:
+    classes = getattr(model, "classes_", None)
+    if classes is None and hasattr(model, "named_steps"):
+        clf = getattr(model, "named_steps", {}).get("clf")
+        classes = getattr(clf, "classes_", None)
+    if classes is None:
+        return []
+    return [str(x) for x in list(classes)]
+
+
+def proba_confidence(model: Any, text: str, label: str) -> tuple[float, dict[str, float]]:
+    """Retorna confiança via predict_proba quando o modelo tiver probabilidade."""
+    if not hasattr(model, "predict_proba"):
+        return 0.75, {}
+    proba = list(model.predict_proba([text])[0])
+    classes = model_classes(model)
+    scores: dict[str, float] = {}
+    for cls, value in zip(classes, proba):
+        scores[str(cls)] = float(value)
+    confidence = max(scores.values()) if scores else 0.75
+    normalized_label = normalize_sentiment_label(label) or normalize_category_label(label) or str(label)
+    for cls, value in scores.items():
+        if normalize_sentiment_label(cls) == normalized_label or normalize_category_label(cls) == normalized_label or cls == label:
+            confidence = float(value)
+            break
+    return float(confidence), scores
+
+
+def margin_confidence(model: Any, text: str, label: str) -> tuple[float, dict[str, float]]:
+    """Aproxima confiança para modelos sem predict_proba, como LinearSVC."""
+    if not hasattr(model, "decision_function"):
+        return 0.72, {}
+    margins = model.decision_function([text])
+    values = margins[0] if hasattr(margins, "__len__") else margins
+    try:
+        values = list(values)
+    except TypeError:
+        values = [float(values)]
+    classes = model_classes(model)
+    if len(values) == 1 and len(classes) == 2:
+        values = [-float(values[0]), float(values[0])]
+    if not values:
+        return 0.72, {}
+    max_value = max(float(v) for v in values)
+    exp_values = [math.exp(max(-50.0, min(50.0, float(v) - max_value))) for v in values]
+    denom = sum(exp_values) or 1.0
+    scores: dict[str, float] = {}
+    for cls, value in zip(classes, exp_values):
+        scores[str(cls)] = float(value / denom)
+    confidence = max(scores.values()) if scores else 0.72
+    for cls, value in scores.items():
+        if normalize_category_label(cls) == label or cls == label:
+            confidence = float(value)
+            break
+    return float(confidence), scores
+
+
+def predict_sentiment_with_model(comment: Any) -> dict[str, Any] | None:
+    text = str(comment or "").strip()
+    if not text:
+        return None
+    model = get_sentiment_model()
+    if model is None:
+        return None
+    try:
+        raw_label = str(model.predict([text])[0])
+        label = normalize_sentiment_label(raw_label)
+        if not label:
+            return None
+        confidence, scores = proba_confidence(model, text, raw_label)
+        return {
+            "label": label,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "lowConfidence": confidence < 0.62,
+            "scores": scores,
+            "source": "modelo_sentimento.joblib",
+        }
+    except Exception:
+        return None
+
+
+def predict_category_with_model(comment: Any) -> dict[str, Any] | None:
+    text = str(comment or "").strip()
+    if not text:
+        return None
+    model = get_category_model()
+    if model is None:
+        return None
+    try:
+        raw_label = str(model.predict([text])[0])
+        label = normalize_category_label(raw_label) or raw_label
+        if label not in CATEGORY_CRITERIA:
+            label = "Outros / Genéricos"
+        confidence, scores = proba_confidence(model, text, raw_label)
+        if not scores:
+            confidence, scores = margin_confidence(model, text, label)
+        return {
+            "label": label,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "lowConfidence": confidence < 0.6 or label == "Outros / Genéricos",
+            "scores": scores,
+            "source": "modelo_categorizacao.joblib",
+        }
+    except Exception:
+        return None
+
+
+def model_status() -> dict[str, Any]:
+    return {
+        "sentimento": {
+            "arquivo": SENTIMENT_MODEL_FILENAME,
+            "carregado": get_sentiment_model() is not None,
+        },
+        "categorizacao": {
+            "arquivo": CATEGORY_MODEL_FILENAME,
+            "carregado": get_category_model() is not None,
+        },
+    }
+
 
 POSITIVE_TERMS = [
     "bom", "boa", "bons", "boas", "otimo", "otima", "ótimo", "ótima", "excelente", "maravilhoso", "maravilhosa",
@@ -339,7 +495,11 @@ def preprocess_text(comment: Any) -> dict[str, Any]:
 
 
 def predict_sentiment(comment: Any, classification: str | None = None) -> dict[str, Any]:
-    # Regra inspirada no notebook: sentimento ternário, texto como fonte principal e falha operacional domina em comentário misto.
+    model_prediction = predict_sentiment_with_model(comment)
+    if model_prediction is not None:
+        return model_prediction
+
+    # Fallback heurístico inspirado no notebook: sentimento ternário, texto como fonte principal e falha operacional domina em comentário misto.
     text = normalize(comment)
     if not text:
         fallback = "positivo" if classification == "promotor" else "negativo" if classification == "detrator" else "neutro"
@@ -376,6 +536,10 @@ def predict_sentiment(comment: Any, classification: str | None = None) -> dict[s
 
 
 def predict_category(comment: Any) -> dict[str, Any]:
+    model_prediction = predict_category_with_model(comment)
+    if model_prediction is not None:
+        return model_prediction
+
     text = normalize(comment)
     raw = {category: count_matches(text, terms) for category, terms in CATEGORY_TERMS.items()}
     entries = sorted(raw.items(), key=lambda item: item[1], reverse=True)
@@ -422,6 +586,12 @@ def parse_bool(value: Any) -> bool | None:
 
 
 def existing_or_predicted_sentiment(raw: AnyRow, col_sent: str | None, col_conf: str | None, col_low: str | None, comment: str, classification: str) -> dict[str, Any]:
+    # Quando houver comentário, usa primeiro o modelo treinado novo; colunas existentes viram fallback.
+    if str(comment or "").strip():
+        predicted = predict_sentiment(comment, classification)
+        if predicted:
+            return predicted
+
     label = normalize_sentiment_label(raw.get(col_sent)) if col_sent else None
     if not label:
         return predict_sentiment(comment, classification)
@@ -438,6 +608,12 @@ def existing_or_predicted_sentiment(raw: AnyRow, col_sent: str | None, col_conf:
 
 
 def existing_or_predicted_category(raw: AnyRow, col_cat: str | None, col_conf: str | None, col_low: str | None, comment: str) -> dict[str, Any]:
+    # Quando houver comentário, usa primeiro o modelo treinado novo; colunas existentes viram fallback.
+    if str(comment or "").strip():
+        predicted = predict_category(comment)
+        if predicted:
+            return predicted
+
     label = normalize_category_label(raw.get(col_cat)) if col_cat else None
     if not label:
         return predict_category(comment)
@@ -745,6 +921,7 @@ def build_dashboard(rows: list[AnyRow], source_name: str = "Base enviada") -> di
             "corte_recomendado_dashboard": threshold_dashboard,
             "categorias_validas": list(CATEGORY_CRITERIA.keys()),
             "criterios_categoria": CATEGORY_CRITERIA,
+            "modelos_python": model_status(),
         },
         "sourceName": source_name,
     }
