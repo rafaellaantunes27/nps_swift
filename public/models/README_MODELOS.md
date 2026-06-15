@@ -1,31 +1,16 @@
-# Modelos incorporados ao front
+# Artefatos públicos do dashboard
 
-Esta pasta contém os artefatos de modelo e a base inferida usada como referência do projeto.
+Esta pasta contém somente os arquivos que podem ir para o bundle público do front.
 
 ## Arquivos
 
-- `sentiment_model.joblib`: modelo salvo para análise de sentimento.
-- `category_model.joblib`: modelo salvo para categorização dos comentários.
+- `base_inferida_swift.csv.gz`: base padrão já inferida usada para gerar `src/data/nps.ts`.
 - `model_metrics.json`: métricas registradas dos modelos.
-- `base_inferida_swift.csv.gz`: base de comentários inferida.
 - `model_manifest.json`: manifesto dos artefatos.
 
-## Uso no dashboard
+Os modelos `.joblib` pesados foram movidos para `entrega/modelos_salvos/` e ignorados pela Vercel. O runtime da Vercel usa as versões leves em:
 
-O front em React/TanStack possui um motor de inferência em TypeScript em `src/lib/npsModel.ts`.
-Ele permite que o site processe CSV diretamente no navegador, sem backend Python, gerando:
-
-- `sentimento_modelo`
-- `confianca_sentimento`
-- `baixa_confianca_sentimento`
-- `categoria_modelo`
-- `confianca_categoria`
-- `baixa_confianca_categoria`
-- `classificacao_nps`
-- `divergencia_nota_texto`
-
-A fórmula usada no painel é:
-
-`NPS_ajustado = 0,7 × NPS_tradicional + 0,3 × Score_sentimento`
-
-Os arquivos `.joblib` ficam preservados para a entrega técnica e para carregamento em Python, caso o professor peça reprodução fora do front.
+```text
+api/models/modelo_sentimento_lite.json.gz
+api/models/modelo_categorizacao_lite.json.gz
+```

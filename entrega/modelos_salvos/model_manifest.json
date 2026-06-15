@@ -1,0 +1,24 @@
+{
+  "projeto": "Swift NPS Dashboard",
+  "formula_nps_ajustado": "NPS_ajustado = 0.7 * NPS_tradicional + 0.3 * Score_sentimento",
+  "front_inference": "src/lib/npsModel.ts",
+  "csv_dynamic_engine": "src/lib/npsDataContext.tsx",
+  "artifacts": [
+    {
+      "file": "base_inferida_swift.csv.gz",
+      "size_bytes": 8754981
+    },
+    {
+      "file": "category_model.joblib",
+      "size_bytes": 7232305
+    },
+    {
+      "file": "model_metrics.json",
+      "size_bytes": 1027
+    },
+    {
+      "file": "sentiment_model.joblib",
+      "size_bytes": 4344137
+    }
+  ]
+}

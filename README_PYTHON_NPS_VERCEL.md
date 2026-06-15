@@ -1,91 +1,53 @@
-# Patch Python + Vercel — NPS Swift
+# Python + Vercel — NPS Swift
 
-Este patch move a maior parte do processamento do dashboard para Python sem alterar o visual do front.
+O projeto mantém o front React/TanStack Start visualmente igual e concentra os cálculos em Python.
 
-## O que foi para Python
+## Runtime da Vercel
 
-- Leitura e detecção de CSV com separador `;`, `,` ou tab.
-- Padronização de colunas por aliases.
-- Classificação NPS por nota ou pela coluna `classificacao` já existente.
-- Cálculo ponderado por `qtd_clientes`, seguindo o racional dos notebooks.
-- NPS tradicional: `% promotores - % detratores`.
-- Score de sentimento: `% positivo - % negativo`.
-- NPS ajustado: `0,7 × NPS tradicional + 0,3 × score sentimento`.
-- Sentimento ternário: positivo, neutro e negativo.
-- Regra de comentário misto: falha operacional pesa mais e tende a negativo.
-- Categorias single-label baseadas na taxonomia dos notebooks:
-  - Atendimento / Loja física
-  - Preço / Promoções
-  - Qualidade do produto
-  - App / Site / Pagamento
-  - Entrega / Pedido digital
-  - Outros / Genéricos
-- Flags de qualidade de texto:
-  - comentário real
-  - texto curto
-  - duplicata exata
-  - duplicata normalizada
-  - emoji
-  - possível lixo/spam
-  - possível não português
-- Ranking por loja, gestão, região, tendência mensal, matriz NPS × categoria, exemplos representativos e termos mais frequentes.
+A rota `/api/process_nps` recebe um CSV enviado pelo front e chama `api/nps_engine.py` para produzir o mesmo formato de dados usado pelo dashboard.
 
-## Como aplicar
+Para evitar o limite de tamanho da Lambda, o runtime Python da Vercel **não instala** `scikit-learn`, `numpy` nem `scipy`. Em produção, os modelos rodam em formato leve:
 
-Extraia este ZIP por cima da pasta atual do projeto. Não apague o projeto inteiro.
-
-Depois rode:
-
-```powershell
-npm install
-npm run build
+```text
+api/models/modelo_sentimento_lite.json.gz
+api/models/modelo_categorizacao_lite.json.gz
 ```
 
-Se passar:
+Os modelos `.joblib` ficam apenas na pasta acadêmica:
 
-```powershell
-git add .
-git commit -m "move calculos nps para python"
-git push
+```text
+entrega/modelos_salvos/
 ```
 
-## Teste local da API Python
+A `.vercelignore` impede que `entrega/`, notebooks, `.joblib`, `node_modules`, `dist` e outros artefatos pesados entrem no deploy.
 
-Para testar upload de CSV com a API Python, use:
+## O que o Python calcula
+
+- Classificação NPS: promotor, neutro e detrator.
+- Sentimento do comentário: positivo, neutro e negativo.
+- Categoria do comentário.
+- Confiança e flag de baixa confiança.
+- NPS tradicional.
+- Score de sentimento.
+- NPS ajustado.
+- Matriz NPS × categoria.
+- Ranking por loja, gestão, região e mês.
+- Exemplos representativos e casos de divergência.
+
+## Teste local
 
 ```powershell
 npx vercel dev
 ```
 
-O `npm run dev` sobe o front, mas nem sempre simula `/api/process_nps` igual à Vercel.
+## Regenerar outputs da entrega
 
-## Regenerar base padrão com Python
+```powershell
+python scripts/gerar_outputs_entrega.py
+```
 
-Opcionalmente:
+## Regenerar base padrão do front
 
 ```powershell
 python scripts/gerar_dados_nps.py
 ```
-
-Por padrão, o script usa `public/models/base_inferida_swift.csv.gz` e recria `src/data/nps.ts`.
-
-
-## Atualização de modelos treinados
-
-Este patch inclui os modelos enviados em:
-
-```text
-api/models/modelo_sentimento.joblib
-api/models/modelo_categorizacao.joblib
-```
-
-O Python usa esses modelos primeiro. Se algum modelo não carregar na Vercel/local, o dashboard continua funcionando com as heurísticas de fallback de `api/nps_engine.py`.
-
-Para trocar os modelos no futuro, substitua os arquivos `.joblib` dentro de `api/models/` mantendo os mesmos nomes.
-
-As dependências Python necessárias para carregar os modelos ficam em:
-
-```text
-requirements.txt
-```
-

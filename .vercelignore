@@ -1,13 +1,28 @@
-# Não enviar artefatos pesados para as funções serverless da Vercel
-api/models/*.joblib
-scripts/
-requirements-modelos.txt
-README_CODIGO_MODELOS.md
-entrega_final/
-.workspace/
+# Artefatos locais e de entrega que não devem ir para o deploy da Vercel
+.git/
+.vercel/
 node_modules/
 dist/
 .output/
-.vercel/
+.tanstack/
+.workspace/
+__pycache__/
+*.pyc
 *.zip
-*.gz.tmp
+
+# Entrega acadêmica fica no GitHub/ZIP, mas não entra no bundle serverless
+entrega/
+entrega_final/
+modelos_salvos/
+
+# Modelos pesados em formato scikit-learn não entram na Vercel
+api/models/*.joblib
+public/models/*.joblib
+
+# Scripts/notebooks de treino não são runtime
+scripts/treinar_*.py
+scripts/testar_modelos.py
+requirements-modelos.txt
+**/*.ipynb
+**/*.xlsx
+**/*.docx

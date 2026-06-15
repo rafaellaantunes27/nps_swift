@@ -1,0 +1,7 @@
+Build local validado neste ambiente com:
+
+npm install
+npm run build
+
+Resultado: build concluído com sucesso.
+Observações: apareceram apenas warnings de dependências/depreciação já esperados; não houve erro de compilação.

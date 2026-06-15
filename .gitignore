@@ -41,3 +41,8 @@ lerna-debug.log*
 *.njsproj
 *.sln
 *.sw?
+
+# Evita recolocar modelos pesados em pastas de runtime/public.
+# Os modelos pesados da entrega ficam em entrega/modelos_salvos/ e são ignorados pela Vercel.
+api/models/*.joblib
+public/models/*.joblib

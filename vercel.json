@@ -2,7 +2,7 @@
   "framework": "tanstack-start",
   "functions": {
     "api/**/*.py": {
-      "excludeFiles": "{src/**,public/**,entrega_final/**,node_modules/**,dist/**,.workspace/**,.git/**,.tanstack/**,**/*.ipynb,**/*.xlsx,**/*.docx,bun.lock}"
+      "excludeFiles": "{src/**,public/models/*.joblib,entrega/**,entrega_final/**,modelos_salvos/**,node_modules/**,dist/**,.workspace/**,.git/**,.tanstack/**,**/*.ipynb,**/*.xlsx,**/*.docx,bun.lock,api/models/*.joblib}"
     }
   }
 }

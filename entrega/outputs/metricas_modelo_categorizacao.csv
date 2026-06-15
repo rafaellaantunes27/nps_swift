@@ -1,0 +1,2 @@
+﻿modelo,labels,observacao
+TF-IDF word n-grams + ComplementNB(alpha=0.05),"App / Site / Pagamento, Atendimento / Loja física, Entrega / Pedido digital, Outros / Genéricos, Preço / Promoções, Qualidade do produto",Treinado com rotulagem pseudo-supervisionada derivada da taxonomia LDA/negócio da Entrega 1; deve ser refinado com mais anotação humana.

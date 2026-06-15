@@ -1,0 +1,2 @@
+﻿modelo,labels,accuracy_against_nps_proxy,macro_f1_against_nps_proxy,weighted_f1_against_nps_proxy,observacao
+TF-IDF word n-grams + ComplementNB(alpha=0.05),"negativo, neutro, positivo",0.776322453463819,0.6398907535807326,0.7960790599347519,Treinado com classificação NPS como proxy inicial. Divergências nota × texto aparecem no dashboard para revisão.

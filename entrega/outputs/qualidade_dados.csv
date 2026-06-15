@@ -1,0 +1,11 @@
+﻿metrica,qtd,pct_comentarios
+comentários com texto,128591,100.0
+duplicatas exatas,16704,12.99002262988856
+duplicatas normalizadas,22461,17.46700779992379
+comentários com emoji,539,0.41915841699652384
+possível não português,2740,2.1307867580157245
+possível lixo/spam,826,0.6423466650076599
+comentários curtos,30584,23.783935112099602
+divergência nota × texto,28499,22.16251526156574
+baixa confiança sentimento,42708,33.21227768661881
+baixa confiança categoria,39164,30.456252770411616

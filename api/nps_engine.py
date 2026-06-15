@@ -616,47 +616,61 @@ def parse_bool(value: Any) -> bool | None:
 
 
 def existing_or_predicted_sentiment(raw: AnyRow, col_sent: str | None, col_conf: str | None, col_low: str | None, comment: str, classification: str) -> dict[str, Any]:
-    # Quando houver comentário, usa primeiro o modelo treinado novo; colunas existentes viram fallback.
-    if str(comment or "").strip():
+    """Usa coluna existente quando ela já existe e chama o modelo quando o CSV vem cru.
+
+    Isso deixa a base completa pré-inferida muito mais rápida para relatórios e mantém
+    o upload dinâmico funcionando: se o arquivo não tiver sentimento, a API chama o
+    modelo Python leve. Para forçar nova inferência mesmo em bases já anotadas, defina
+    NPS_FORCE_MODEL_PREDICTION=1.
+    """
+    force_model = os.environ.get("NPS_FORCE_MODEL_PREDICTION") == "1"
+    label = normalize_sentiment_label(raw.get(col_sent)) if col_sent else None
+
+    if force_model and str(comment or "").strip():
         predicted = predict_sentiment(comment, classification)
         if predicted:
             return predicted
 
-    label = normalize_sentiment_label(raw.get(col_sent)) if col_sent else None
-    if not label:
-        return predict_sentiment(comment, classification)
-    confidence = parse_number(raw.get(col_conf)) if col_conf else math.nan
-    if not math.isfinite(confidence):
-        confidence = 0.75
-    low = parse_bool(raw.get(col_low)) if col_low else None
-    return {
-        "label": label,
-        "confidence": float(confidence),
-        "lowConfidence": bool(low) if low is not None else float(confidence) < 0.62,
-        "scores": {},
-    }
+    if label:
+        confidence = parse_number(raw.get(col_conf)) if col_conf else math.nan
+        if not math.isfinite(confidence):
+            confidence = 0.75
+        low = parse_bool(raw.get(col_low)) if col_low else None
+        return {
+            "label": label,
+            "confidence": float(confidence),
+            "lowConfidence": bool(low) if low is not None else float(confidence) < 0.62,
+            "scores": {},
+            "source": "coluna_existente",
+        }
+
+    return predict_sentiment(comment, classification)
 
 
 def existing_or_predicted_category(raw: AnyRow, col_cat: str | None, col_conf: str | None, col_low: str | None, comment: str) -> dict[str, Any]:
-    # Quando houver comentário, usa primeiro o modelo treinado novo; colunas existentes viram fallback.
-    if str(comment or "").strip():
+    """Usa categoria existente quando disponível e chama o modelo para CSVs crus."""
+    force_model = os.environ.get("NPS_FORCE_MODEL_PREDICTION") == "1"
+    label = normalize_category_label(raw.get(col_cat)) if col_cat else None
+
+    if force_model and str(comment or "").strip():
         predicted = predict_category(comment)
         if predicted:
             return predicted
 
-    label = normalize_category_label(raw.get(col_cat)) if col_cat else None
-    if not label:
-        return predict_category(comment)
-    confidence = parse_number(raw.get(col_conf)) if col_conf else math.nan
-    if not math.isfinite(confidence):
-        confidence = 0.75 if label != "Outros / Genéricos" else 0.38
-    low = parse_bool(raw.get(col_low)) if col_low else None
-    return {
-        "label": label,
-        "confidence": float(confidence),
-        "lowConfidence": bool(low) if low is not None else float(confidence) < 0.6 or label == "Outros / Genéricos",
-        "scores": {},
-    }
+    if label:
+        confidence = parse_number(raw.get(col_conf)) if col_conf else math.nan
+        if not math.isfinite(confidence):
+            confidence = 0.75 if label != "Outros / Genéricos" else 0.38
+        low = parse_bool(raw.get(col_low)) if col_low else None
+        return {
+            "label": label,
+            "confidence": float(confidence),
+            "lowConfidence": bool(low) if low is not None else float(confidence) < 0.6 or label == "Outros / Genéricos",
+            "scores": {},
+            "source": "coluna_existente",
+        }
+
+    return predict_category(comment)
 
 def derive_management(raw: AnyRow, col_gestao: str | None, col_flag: str | None) -> str:
     if col_gestao:
