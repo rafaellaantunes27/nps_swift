@@ -1,4 +1,3 @@
-scikit-learn==1.9.0
-joblib==1.5.3
-numpy==2.4.4
-scipy
+# Runtime Python da Vercel intencionalmente sem scikit-learn/numpy/scipy.
+# Os modelos treinados foram exportados para JSON.GZ e rodam com biblioteca padrão do Python.
+# Para treinar/regerar modelos localmente, use requirements-modelos.txt.

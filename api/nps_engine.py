@@ -5,6 +5,7 @@ import gzip
 import io
 import json
 import math
+import os
 import re
 import unicodedata
 import warnings
@@ -13,6 +14,8 @@ from collections import Counter, defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+
+from api.lightweight_models import lite_model_status, predict_lite
 
 AnyRow = dict[str, Any]
 
@@ -64,6 +67,11 @@ def load_joblib_model(filename: str) -> Any | None:
     Se a dependência ou o arquivo não existir, o dashboard continua funcionando
     com as heurísticas Python de fallback.
     """
+    # Na Vercel, scikit-learn/numpy/scipy deixam a função Python grande demais.
+    # Por padrão, usamos os modelos lite exportados em JSON.GZ.
+    # Para testar joblib localmente, defina NPS_ENABLE_JOBLIB_MODELS=1.
+    if os.environ.get("NPS_ENABLE_JOBLIB_MODELS") != "1":
+        return None
     path = MODEL_DIR / filename
     if not path.exists():
         return None
@@ -146,6 +154,20 @@ def predict_sentiment_with_model(comment: Any) -> dict[str, Any] | None:
     text = str(comment or "").strip()
     if not text:
         return None
+
+    lite = predict_lite("modelo_sentimento_lite.json.gz", text)
+    if lite is not None:
+        label = normalize_sentiment_label(str(lite.get("label")))
+        if label:
+            confidence = float(lite.get("confidence") or 0.75)
+            return {
+                "label": label,
+                "confidence": max(0.0, min(1.0, confidence)),
+                "lowConfidence": confidence < 0.62,
+                "scores": lite.get("scores", {}),
+                "source": "modelo_sentimento_lite.json.gz",
+            }
+
     model = get_sentiment_model()
     if model is None:
         return None
@@ -165,11 +187,26 @@ def predict_sentiment_with_model(comment: Any) -> dict[str, Any] | None:
     except Exception:
         return None
 
-
 def predict_category_with_model(comment: Any) -> dict[str, Any] | None:
     text = str(comment or "").strip()
     if not text:
         return None
+
+    lite = predict_lite("modelo_categorizacao_lite.json.gz", text)
+    if lite is not None:
+        raw_label = str(lite.get("label"))
+        label = normalize_category_label(raw_label) or raw_label
+        if label not in CATEGORY_CRITERIA:
+            label = "Outros / Genéricos"
+        confidence = float(lite.get("confidence") or 0.72)
+        return {
+            "label": label,
+            "confidence": max(0.0, min(1.0, confidence)),
+            "lowConfidence": confidence < 0.6 or label == "Outros / Genéricos",
+            "scores": lite.get("scores", {}),
+            "source": "modelo_categorizacao_lite.json.gz",
+        }
+
     model = get_category_model()
     if model is None:
         return None
@@ -191,18 +228,11 @@ def predict_category_with_model(comment: Any) -> dict[str, Any] | None:
     except Exception:
         return None
 
-
 def model_status() -> dict[str, Any]:
-    return {
-        "sentimento": {
-            "arquivo": SENTIMENT_MODEL_FILENAME,
-            "carregado": get_sentiment_model() is not None,
-        },
-        "categorizacao": {
-            "arquivo": CATEGORY_MODEL_FILENAME,
-            "carregado": get_category_model() is not None,
-        },
-    }
+    status = lite_model_status()
+    status["runtime"] = "lite-json-gzip-sem-sklearn"
+    status["joblib_habilitado"] = os.environ.get("NPS_ENABLE_JOBLIB_MODELS") == "1"
+    return status
 
 
 POSITIVE_TERMS = [

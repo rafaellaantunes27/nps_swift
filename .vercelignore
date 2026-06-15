@@ -1,0 +1,13 @@
+# Não enviar artefatos pesados para as funções serverless da Vercel
+api/models/*.joblib
+scripts/
+requirements-modelos.txt
+README_CODIGO_MODELOS.md
+entrega_final/
+.workspace/
+node_modules/
+dist/
+.output/
+.vercel/
+*.zip
+*.gz.tmp
