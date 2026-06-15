@@ -51,9 +51,9 @@ export function CsvUploadPanel() {
             Upload de CSV com inferência automática
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Ao anexar um CSV, o front identifica nota, comentário, loja, gestão, região e data; aplica os modelos
-            incorporados de sentimento e categorização; calcula NPS tradicional, score textual, NPS ajustado e
-            atualiza todos os painéis.
+            Ao anexar um CSV, a API Python identifica nota, comentário, loja, gestão, região e data; aplica os modelos
+            de sentimento e categorização; calcula NPS tradicional, score textual, NPS ajustado e
+            devolve os dados para o mesmo front atualizar todos os painéis.
           </p>
           <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 rounded-full bg-background px-2.5 py-1 font-medium">
